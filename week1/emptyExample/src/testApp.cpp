@@ -229,7 +229,7 @@ void testApp::draw(){
     colorImgOf.draw(0,0);
     
     
-    if (rw > 100){
+
         if (faceX > 10){
         colorFace.draw(x,y);
         }
@@ -244,7 +244,7 @@ void testApp::draw(){
 
         rightFace.draw(x+(rw/2-1)+faceX,y+faceY);
 
-    }
+    
 //    	ofSetColor(255,0,0);
 	 /*  ofNoFill();
 	ofSetColor(0x333333);
@@ -276,12 +276,12 @@ void testApp::mouseMoved(int x, int y ){
 //--------------------------------------------------------------
 void testApp::mouseDragged(int x, int y, int button){
     faceX+=1;
-//    faceY+=10;
+    //    faceY+=10;
+
 }
 
 //--------------------------------------------------------------
 void testApp::mousePressed(int x, int y, int button){
-    
 }
 
 //--------------------------------------------------------------
