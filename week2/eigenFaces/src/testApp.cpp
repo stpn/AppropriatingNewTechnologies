@@ -14,7 +14,7 @@ extern "C" {
 
 
 // Haar Cascade file, used for Face Detection.
-const char *faceCascadeFilename = "/Users/stepanboltalin/Documents/openFrameworks/openFrameworks/AppropriatingNewTechnologies/week1/ScreenGrab/src/haarcascade_frontalface_default.xml";
+const char *faceCascadeFilename = "/Users/stepanboltalin/Documents/openFrameworks/openFrameworks/AppropriatingNewTechnologies/week2/eigenFaces/bin/data/haarcascade_frontalface_default.xml";
 
 int SAVE_EIGENFACE_IMAGES = 1;		// Set to 0 if you dont want images of the Eigenvectors saved to files (for debugging).
 //#define USE_MAHALANOBIS_DISTANCE	// You might get better recognition accuracy if you enable this.
@@ -39,36 +39,32 @@ CvMat * eigenValMat           = 0; // eigenvalues
 CvMat * projectedTrainFaceMat = 0; // projected training faces
 
 CvCapture* camera = 0;	// The camera device.
-
-//BAD GLOBALS:
-
-int iNearest, nearest, truth;
-IplImage *camImg;
-IplImage *greyImg;
-IplImage *faceImg;
-IplImage *sizedImg;
-IplImage *equalizedImg;
-IplImage *processedFaceImg;
-CvRect faceRect;
-IplImage *shownImg;
-int keyPressed = 0;
-FILE *trainFile;
-float confidence;
+int startState;
+int state = 0;
 
 
-int i;
-CvMat * trainPersonNumMat;  // the person numbers during training
-float * projectedTestFace;
-double timeFaceRecognizeStart;
-double tallyFaceRecognizeTime;
-CvHaarClassifierCascade* faceCascade;
-char cstr[256];
-BOOL saveNextFaces = FALSE;
+//int i;
+//CvMat * trainPersonNumMat;  // the person numbers during training
+//float * projectedTestFace;
+//double timeFaceRecognizeStart;
+//double tallyFaceRecognizeTime;
+//CvHaarClassifierCascade* faceCascade;
+//char cstr[256];
+//BOOL saveNextFaces = FALSE;
+//char newPersonName[256];
+//int newPersonFaces;
+
+bool keyN = FALSE;
+bool keyT = FALSE;
+
+int newPersonFaces = 0;
 char newPersonName[256];
-int newPersonFaces;
 
 
 // Function prototypes
+
+void recognizeFromCam(IplImage* cameraImg);
+
 void printUsage();
 void learn(const char *szFileTrain);
 void doPCA();
@@ -78,7 +74,7 @@ int  findNearestNeighbor(float * projectedTestFace);
 int findNearestNeighbor(float * projectedTestFace, float *pConfidence);
 int  loadFaceImgArray(const char * filename);
 void recognizeFileList(const char *szFileTest);
-const IplImage *recognizeFromCam(IplImage* cameraImg);
+//const IplImage *recognizeFromCam(IplImage* cameraImg);
 IplImage* getCameraFrame(void);
 IplImage* convertImageToGreyscale(const IplImage *imageSrc);
 IplImage* cropImage(const IplImage *img, const CvRect region);
@@ -87,7 +83,6 @@ IplImage* convertFloatImageToUcharImage(const IplImage *srcImg);
 void saveFloatImage(const char *filename, const IplImage *srcImg);
 CvRect detectFaceInImage(const IplImage *inputImg, const CvHaarClassifierCascade* cascade );
 CvMat* retrainOnline(void);
-
 
 
 //--------------------------------------------------------------
@@ -120,7 +115,7 @@ void storeEigenfaceImages()
 {
 	// Store the average image to a file
 	printf("Saving the image of the average face as 'out_averageImage.bmp'.\n");
-	cvSaveImage("out_averageImage.bmp", pAvgTrainImg);
+	cvSaveImage("/Users/stepanboltalin/Documents/openFrameworks/openFrameworks/AppropriatingNewTechnologies/week2/eigenFaces/bin/data/out_averageImage.bmp", pAvgTrainImg);
 	// Create a large image made of many eigenface images.
 	// Must also convert each eigenface image to a normal 8-bit UCHAR image instead of a 32-bit float image.
 	printf("Saving the %d eigenvector images as 'out_eigenfaces.bmp'\n", nEigens);
@@ -146,13 +141,16 @@ void storeEigenfaceImages()
 			cvResetImageROI(bigImg);
 			cvReleaseImage(&byteImg);
 		}
-		cvSaveImage("out_eigenfaces.bmp", bigImg);
+		cvSaveImage("/Users/stepanboltalin/Documents/openFrameworks/openFrameworks/AppropriatingNewTechnologies/week2/eigenFaces/bin/data/out_eigenfaces.bmp", bigImg);
 		cvReleaseImage(&bigImg);
 	}
 }
 
 
-
+const std::type_info& get_type( const IplImage* object )
+{
+    return typeid( *object ) ;
+}
 
 // Train from the data in the given text file, and store the trained data into the file 'facedata.xml'.
 void learn(const char *szFileTrain)
@@ -208,7 +206,7 @@ int loadTrainingData(CvMat ** pTrainPersonNumMat)
 	int i;
     
 	// create a file-storage interface
-	fileStorage = cvOpenFileStorage( "facedata.xml", 0, CV_STORAGE_READ );
+	fileStorage = cvOpenFileStorage( "/Users/stepanboltalin/Documents/openFrameworks/openFrameworks/AppropriatingNewTechnologies/week2/eigenFaces/bin/data/facedata.xml", 0, CV_STORAGE_READ );
 	if( !fileStorage ) {
 //		printf("Can't open training database file 'facedata.xml'.\n");
 		return 0;
@@ -268,7 +266,7 @@ void storeTrainingData()
 	int i;
     
 	// create a file-storage interface
-	fileStorage = cvOpenFileStorage( "facedata.xml", 0, CV_STORAGE_WRITE );
+	fileStorage = cvOpenFileStorage( "/Users/stepanboltalin/Documents/openFrameworks/openFrameworks/AppropriatingNewTechnologies/week2/eigenFaces/bin/data/facedata.xml", 0, CV_STORAGE_WRITE );
     
 	// Store the person names. Added by Shervin.
 	cvWriteInt( fileStorage, "nPersons", nPersons );
@@ -396,6 +394,9 @@ int loadFaceImgArray(const char * filename)
     
 	// allocate the face-image array and person number matrix
 	faceImgArr        = (IplImage **)cvAlloc( nFaces*sizeof(IplImage *) );
+    
+    cout << "===== nFaces ===== " << nFaces << endl;
+    
 	personNumTruthMat = cvCreateMat( 1, nFaces, CV_32SC1 );
     
 	personNames.clear();	// Make sure it starts as empty.
@@ -464,7 +465,10 @@ void recognizeFileList(const char *szFileTest)
 	double tallyFaceRecognizeTime;
 	float confidence;
     
-	// load test images and ground truth for person number
+	
+
+    
+    // load test images and ground truth for person number
 	nTestFaces = loadFaceImgArray(szFileTest);
 	printf("%d test faces loaded\n", nTestFaces);
     
@@ -746,7 +750,7 @@ CvMat* retrainOnline(void)
     
 	// Retrain from the data in the files
 	printf("Retraining with the new person ...\n");
-	learn("train.txt");
+	learn("/Users/stepanboltalin/Documents/openFrameworks/openFrameworks/AppropriatingNewTechnologies/week2/eigenFaces/bin/data/train.txt");
 	printf("Done retraining.\n");
     
 	// Load the previously saved training data
@@ -762,15 +766,25 @@ CvMat* retrainOnline(void)
 ////////////////////////////////////////////////////////////////////////
 //////////// Continuously recognize the person in the camera.//////////
 //////////////////////////////////////////////////////////////////////
-
-const IplImage * recognizeFromCam(IplImage* cameraImg)
+void recognizeFromCam(IplImage* cameraImg)
+//const IplImage * recognizeFromCam(IplImage* cameraImg)
 {
+	int i;
+	CvMat * trainPersonNumMat;  // the person numbers during training
+	float * projectedTestFace;
+	double timeFaceRecognizeStart;
+	double tallyFaceRecognizeTime;
+	CvHaarClassifierCascade* faceCascade;
+	char cstr[256];
+
+    
+
+    
+    BOOL saveNextFaces = FALSE;
 
     
 	trainPersonNumMat = 0;  // the person numbers during training
 	projectedTestFace = 0;
-	saveNextFaces = FALSE;
-	newPersonFaces = 0;
     
 	printf("Recognizing person in the camera ...\n");
     
@@ -788,15 +802,7 @@ const IplImage * recognizeFromCam(IplImage* cameraImg)
 	projectedTestFace = (float *)cvAlloc( nEigens*sizeof(float) );
     
 	// Create a GUI window for the user to see the camera image.
-	cvNamedWindow("Input", CV_WINDOW_AUTOSIZE);
-    
-	// Make sure there is a "data" folder, for storing the new person.
-#if defined WIN32 || defined _WIN32
-    mkdir("data");
-#else
-    // For Linux, make the folder to be Read-Write-Executable for this user & group but only Readable for others.
-    mkdir("data", S_IRWXU | S_IRWXG | S_IROTH);
-#endif
+	//cvNamedWindow("Input", CV_WINDOW_AUTOSIZE);
     
 	// Load the HaarCascade classifier for face detection.
 	faceCascade = (CvHaarClassifierCascade*)cvLoad(faceCascadeFilename, 0, 0, 0 );
@@ -810,29 +816,153 @@ const IplImage * recognizeFromCam(IplImage* cameraImg)
     
 	timeFaceRecognizeStart = (double)cvGetTickCount();	// Record the timing.
     
+//	while (1)
+//	{
+    
+    if (startState == 0){
+		int iNearest, nearest, truth;
+		IplImage *camImg;
+		IplImage *greyImg;
+		IplImage *faceImg;
+		IplImage *sizedImg;
+		IplImage *equalizedImg;
+		IplImage *processedFaceImg;
+		CvRect faceRect;
+		IplImage *shownImg;
+		unsigned keyPressed;
+		FILE *trainFile;
+		float confidence;
+
+        
+//        keyPressed = getchar();
+        
+//		switch (keyPressed) {
+//			case 'k':	// Add a new person to the training set.
+    if (state == 1) {      
+       
+				// Train from the following images.
+				printf("Enter your name: ");
+				strcpy(newPersonName, "newPerson");
+                
+				fgets(newPersonName, sizeof(newPersonName)-1, stdin);
+                
+				// Remove 1 or 2 newline characters if they were appended (eg: Linux).
+				i = strlen(newPersonName);
+				if (i > 0 && (newPersonName[i-1] == 10 || newPersonName[i-1] == 13)) {
+					newPersonName[i-1] = 0;
+					i--;
+				}
+				if (i > 0 && (newPersonName[i-1] == 10 || newPersonName[i-1] == 13)) {
+					newPersonName[i-1] = 0;
+					i--;
+				}
+				
+				if (i > 0) {
+					printf("Collecting all images until you hit 't', to start Training the images as '%s' ...\n", newPersonName);
+					newPersonFaces = 0;	// restart training a new person
+					saveNextFaces = TRUE;
+                    state = 2;
+
+				}
+				else {
+					printf("Did not get a valid name from you, so will ignore it. Hit 'n' to retry.\n");
+				}
+        
 
 
-
+    }
+        
+ //       if (state == 2){
+  //          newPersonFaces = 0;	// restart training a new person
+   //             saveNextFaces = TRUE;
+     //   }
+        
+        
+    if (state == 3){
+        
+//        state = 3;
+	//		case 'l':	// Start training
+				saveNextFaces = FALSE;	// stop saving next faces.
+				// Store the saved data into the training file.
+				printf("Storing the training data for new person '%s'.\n", newPersonName);
+				// Append the new person to the end of the training data.
+				trainFile = fopen("/Users/stepanboltalin/Documents/openFrameworks/openFrameworks/AppropriatingNewTechnologies/week2/eigenFaces/bin/data/train.txt", "a");
+				for (i=0; i<newPersonFaces; i++) {
+					snprintf(cstr, sizeof(cstr)-1, "/Users/stepanboltalin/Documents/openFrameworks/openFrameworks/AppropriatingNewTechnologies/week2/eigenFaces/bin/data/%d_%s%d.pgm", nPersons+1, newPersonName, i+1);
+					fprintf(trainFile, "%d %s %s\n", nPersons+1, newPersonName, cstr);
+				}
+				fclose(trainFile);
+                
+				// Now there is one more person in the database, ready for retraining.
+				//nPersons++;
+                
+				//break;
+                //case 'r':
+                
+				// Re-initialize the local data.
+				projectedTestFace = 0;
+				saveNextFaces = FALSE;
+				newPersonFaces = 0;
+                
+				// Retrain from the new database without shutting down.
+				// Depending on the number of images in the training set and number of people, it might take 30 seconds or so.
+				cvFree( &trainPersonNumMat );	// Free the previous data before getting new data
+				trainPersonNumMat = retrainOnline();
+				// Project the test images onto the PCA subspace
+				cvFree(&projectedTestFace);	// Free the previous data before getting new data
+				projectedTestFace = (float *)cvAlloc( nEigens*sizeof(float) );
+                
+				printf("Recognizing person in the camera ...\n");
+	//			continue;	// Begin with the next frame.
+//				break;
+        state == 0;
+    
+    }
         
         
 		// Make sure the image is greyscale, since the Eigenfaces is only done on greyscale image.*/
 		greyImg = convertImageToGreyscale(cameraImg);
         
+        
+
+
 		// Perform face detection on the input image, using the given Haar cascade classifier.
 		faceRect = detectFaceInImage(greyImg, faceCascade );
+        
+
+
+
+
 		// Make sure a valid face was detected.
 		if (faceRect.width > 0) {
+            
+
 			faceImg = cropImage(greyImg, faceRect);	// Get the detected face image.
+            
+
+            
+
+
 			// Make sure the image is the same dimensions as the training images.
 			sizedImg = resizeImage(faceImg, faceWidth, faceHeight);
+            
+
+
 			// Give the image a standard brightness and contrast, in case it was too dark or low contrast.
 			equalizedImg = cvCreateImage(cvGetSize(sizedImg), 8, 1);	// Create an empty greyscale image
+            
+
+            
 			cvEqualizeHist(sizedImg, equalizedImg);
 			processedFaceImg = equalizedImg;
+            
+
 			if (!processedFaceImg) {
 				printf("ERROR in recognizeFromCam(): Don't have input image!\n");
 				exit(1);
 			}
+            
+
             
 			// If the face rec database has been loaded, then try to recognize the person currently detected.
 			if (nEigens > 0) {
@@ -854,13 +984,19 @@ const IplImage * recognizeFromCam(IplImage* cameraImg)
 			}//endif nEigens
             
 			// Possibly save the processed face to the training set.
-			if (saveNextFaces) {
+//			if (saveNextFaces) {
+            if (state == 2) {
                 // MAYBE GET IT TO ONLY TRAIN SOME IMAGES ?
 				// Use a different filename each time.
-				snprintf(cstr, sizeof(cstr)-1, "data/%d_%s%d.pgm", nPersons+1, newPersonName, newPersonFaces+1);
+                
+     //           cout << "======CSTR======" << cstr << endl;
+				snprintf(cstr, sizeof(cstr)-1, "/Users/stepanboltalin/Documents/openFrameworks/openFrameworks/AppropriatingNewTechnologies/week2/eigenFaces/bin/data/%d_%s%d.pgm", nPersons+1, newPersonName, newPersonFaces+1);
 				printf("Storing the current face of '%s' into image '%s'.\n", newPersonName, cstr);
 				cvSaveImage(cstr, processedFaceImg, NULL);
+                cout << "========newPerSonFaces=======" << newPersonFaces << endl; 
+
 				newPersonFaces++;
+
 			}
             
 			// Free the resources used for this frame.
@@ -888,21 +1024,22 @@ const IplImage * recognizeFromCam(IplImage* cameraImg)
 			}
 		}
         const IplImage *result = shownImg;
-        
-        
+                
+
         return result;
-        
+
         
 		cvReleaseImage( &shownImg );
 	}
-//	tallyFaceRecognizeTime = (double)cvGetTickCount() - timeFaceRecognizeStart;
+	tallyFaceRecognizeTime = (double)cvGetTickCount() - timeFaceRecognizeStart;
     
-
+	// Reset the Linux terminal back to the original settings.
+    //	changeKeyboardMode(0);
+    
+	// Free the camera and memory resources used.
     //	cvReleaseCapture( &camera );
-	//cvReleaseHaarClassifierCascade( &faceCascade );
-
-
-
+	cvReleaseHaarClassifierCascade( &faceCascade );
+}
 
 //--------------------------------------------------------------
 void testApp::update(){
@@ -918,15 +1055,18 @@ void testApp::update(){
         colorImg.setFromPixels(vidGrabber.getPixels(), w,h);
         
     }
-    
-        
     camImg = colorImg.getCvImage(); 
-    colorImg2 = recognizeFromCam(camImg);
+    colorImg2 = camImg;
+    recognizeFromCam(camImg);
+
+
 }
 
 //--------------------------------------------------------------
 void testApp::draw(){
     
+   
+
     colorImg2.draw(0, 0);
 
     ofDrawBitmapString("boom", 0, 100);
@@ -937,67 +1077,21 @@ void testApp::draw(){
 void testApp::keyPressed(int key){
     if (key == 'n'){	// Add a new person to the training set.
             
-            // Train from the following images.
-            printf("Enter your name: ");
-            strcpy(newPersonName, "newPerson");
-            
-            fgets(newPersonName, sizeof(newPersonName)-1, stdin);
-            
-            // Remove 1 or 2 newline characters if they were appended (eg: Linux).
-            i = strlen(newPersonName);
-            if (i > 0 && (newPersonName[i-1] == 10 || newPersonName[i-1] == 13)) {
-                newPersonName[i-1] = 0;
-                i--;
-            }
-            if (i > 0 && (newPersonName[i-1] == 10 || newPersonName[i-1] == 13)) {
-                newPersonName[i-1] = 0;
-                i--;
-            }
-            
-            if (i > 0) {
-                printf("Collecting all images until you hit 't', to start Training the images as '%s' ...\n", newPersonName);
-                newPersonFaces = 0;	// restart training a new person
-                saveNextFaces = TRUE;
-            }
-            else {
-                printf("Did not get a valid name from you, so will ignore it. Hit 'n' to retry.\n");
-            }
+        state = 1;
     }
     if (key == 't'){	// Start training
-            saveNextFaces = FALSE;	// stop saving next faces.
-            // Store the saved data into the training file.
-            printf("Storing the training data for new person '%s'.\n", newPersonName);
-            // Append the new person to the end of the training data.
-            trainFile = fopen("train.txt", "a");
-            for (i=0; i<newPersonFaces; i++) {
-                snprintf(cstr, sizeof(cstr)-1, "data/%d_%s%d.pgm", nPersons+1, newPersonName, i+1);
-                fprintf(trainFile, "%d %s %s\n", nPersons+1, newPersonName, cstr);
-            }
-            fclose(trainFile);
-            
-            // Now there is one more person in the database, ready for retraining.
-            //nPersons++;
-            
-            //break;
-            //case 'r':
-            
-            // Re-initialize the local data.
-            projectedTestFace = 0;
-            saveNextFaces = FALSE;
-            newPersonFaces = 0;
-            
-            // Retrain from the new database without shutting down.
-            // Depending on the number of images in the training set and number of people, it might take 30 seconds or so.
-            cvFree( &trainPersonNumMat );	// Free the previous data before getting new data
-            trainPersonNumMat = retrainOnline();
-            // Project the test images onto the PCA subspace
-            cvFree(&projectedTestFace);	// Free the previous data before getting new data
-            projectedTestFace = (float *)cvAlloc( nEigens*sizeof(float) );
-            
-            printf("Recognizing person in the camera ...\n");
-      }
-}
+           
+        state = 3;
 
+    }
+    
+    if (key == 's'){	// Start training
+        
+        state = 0;
+        
+    }
+
+}
 //--------------------------------------------------------------
 void testApp::keyReleased(int key){
 
