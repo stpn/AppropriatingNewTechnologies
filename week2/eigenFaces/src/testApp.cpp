@@ -42,6 +42,8 @@ CvCapture* camera = 0;	// The camera device.
 int startState;
 int state = 0;
 
+int name_x;
+int name_y;
 
 //int i;
 //CvMat * trainPersonNumMat;  // the person numbers during training
@@ -57,9 +59,13 @@ int state = 0;
 bool keyN = FALSE;
 bool keyT = FALSE;
 
+
+
 int newPersonFaces = 0;
 char newPersonName[256];
+string namename;
 
+bool conf;
 
 // Function prototypes
 
@@ -979,6 +985,21 @@ void recognizeFromCam(IplImage* cameraImg)
 				iNearest = findNearestNeighbor(projectedTestFace, &confidence);
 				nearest  = trainPersonNumMat->data.i[iNearest];
                 
+                namename =  personNames[nearest-1].c_str();
+
+                name_x = faceRect.width;
+                
+                name_y = faceRect.height;
+                
+                if (confidence > 0){
+                    conf = TRUE;
+                
+                }
+                else{
+                    
+                    conf = FALSE;
+                }
+
 				printf("Most likely person in camera: '%s' (confidence=%f).\n", personNames[nearest-1].c_str(), confidence);
                 
 			}//endif nEigens
@@ -1068,8 +1089,10 @@ void testApp::draw(){
    
 
     colorImg2.draw(0, 0);
-
-    ofDrawBitmapString("boom", 0, 100);
+    
+    if (conf ==  TRUE){
+    ofDrawBitmapString(namename, name_x*2, name_y);
+    }
 
 }
 
